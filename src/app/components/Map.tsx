@@ -3,28 +3,66 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import type { Map as MLMap } from "maplibre-gl";
-// Assuming these imports are correct
-// import { listingsGeoJSON } from "@/data/listings";
-// import { buildingsGeoJSON } from "@/data/buildings";
-
-type Mode = "all" | "sale" | "rent";
 
 export default function MapView({
-  mode = "all", // mode is now unused inside the main effect but kept for potential future use
   onReady,
 }: {
-  mode?: Mode;
   onReady?: (map: MLMap) => void;
 }) {
   const mapRef = useRef<MLMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const markerRef = useRef<maplibregl.Marker | null>(null);
 
   const STYLE_URL = "/style/kuy-nama.json";
+  const ICON_NAME = "building-logo";
+  const ICON_URL = "/images/building-pin.png";
 
-  // This effect initializes the map ONCE.
+  // Hide dark base polygons (buildings / landuse / landcover etc), keep water
+  const hideBasePolygons = (map: MLMap) => {
+    const style = map.getStyle();
+    if (!style?.layers) return;
+
+    // keywords we want to hide if layer type is "fill"
+    const HIDE_KEYS = [
+      "building",
+      "landuse",
+      "landcover",
+      "park",
+      "wood",
+      "forest",
+      "aeroway",
+      "pedestrian",
+      "residential",
+      "commercial",
+      "industrial",
+      "school",
+      "university",
+      "hospital",
+      "place",
+      "amenity",
+    ];
+
+    // keywords we should not hide
+    const KEEP_KEYS = ["water", "background"];
+
+    for (const layer of style.layers) {
+      // only target polygon fills in the basemap
+      if (layer.type !== "fill") continue;
+
+      const id = layer.id.toLowerCase();
+      if (KEEP_KEYS.some((k) => id.includes(k))) continue;
+
+      if (HIDE_KEYS.some((k) => id.includes(k))) {
+        try {
+          map.setLayoutProperty(layer.id, "visibility", "none");
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
+
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return; // Prevents re-initialization
+    if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -44,61 +82,134 @@ export default function MapView({
 
     map.on("error", (e) => console.error("[MapLibre error]", e));
 
-    // ✅ Click to drop pin logic
-    map.on("click", (e) => {
-      const { lng, lat } = e.lngLat;
-
-      // Remove the previous marker if it exists
-      markerRef.current?.remove();
-
-      // Create a more robust custom marker element
-      const el = document.createElement("div");
-      el.className = "custom-marker"; // Use a class for easier styling
-      el.style.backgroundImage = "url('/images/building-pin.png')";
-      el.style.width = "48px";
-      el.style.height = "48px";
-      el.style.backgroundSize = "contain";
-      el.style.backgroundRepeat = "no-repeat";
-      // Add a fallback style for debugging in case the image doesn't load
-      el.style.backgroundColor = "rgba(255, 0, 0, 0.2)";
-      el.style.borderRadius = "50%";
-
-      // Drop marker with anchor at the bottom so the tip points to the clicked spot
-      markerRef.current = new maplibregl.Marker({
-        element: el,
-        anchor: "bottom", // This aligns the bottom-center of the div to the coordinate
-      })
-        .setLngLat([lng, lat])
-        .addTo(map);
-
-      console.log("📍 Pin dropped at", lng, lat);
-    });
-
-    map.on("load", () => {
-      // Safely call onReady callback
-      if (onReady) {
-        onReady(map);
+    const addBuildings = async () => {
+      if (!map.getSource("buildings")) {
       }
+
+      // Load custom pin image once
+      await new Promise<void>((resolve, reject) => {
+        if (map.hasImage(ICON_NAME)) return resolve();
+        (map as any).loadImage(ICON_URL, (err: any, img: any) => {
+          if (err) return reject(err);
+          if (!map.hasImage(ICON_NAME)) map.addImage(ICON_NAME, img);
+          resolve();
+        });
+      });
+
+      if (!map.getLayer("building-icons")) {
+        map.addLayer({
+          id: "building-icons",
+          type: "symbol",
+          source: "buildings",
+          layout: {
+            "icon-image": ICON_NAME,
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              10,
+              0.5,
+              16,
+              0.9,
+            ],
+            "icon-allow-overlap": true,
+          },
+        });
+      }
+
+      // Hover card
+      let hoverPopup: maplibregl.Popup | null = null;
+      const buildCardHTML = (p: any) => {
+        const price = Number(p.price || 0);
+        const floors = Number(p.floors || 0);
+        const height = Number(p.height || 0);
+        const img = p.image || "/images/placeholder.jpg";
+        return `
+          <div style="width:260px; font-family: ui-sans-serif,system-ui;">
+            <img src="${img}" alt="${p.name}"
+                 style="width:100%; height:128px; object-fit:cover; border-radius:8px;" />
+            <div style="margin-top:8px;">
+              <div style="font-weight:700; color:#ff5a3c;">${p.name}</div>
+              <div style="font-size:12px; color:#9ca3af; margin:2px 0 6px;">
+                ${p.type} · ${floors} floors · ${height} m
+              </div>
+              <div style="font-size:14px; margin:2px 0;">
+                Price: <b>${new Intl.NumberFormat("fa-IR").format(
+                  price
+                )}</b> IRR
+              </div>
+              <div style="font-size:12px; color:#cbd5e1; margin-top:6px;">
+                ${p.description}
+              </div>
+            </div>
+          </div>
+        `;
+      };
+
+      map.on("mouseenter", "building-icons", (e) => {
+        if (map.getZoom() < 10) return;
+        map.getCanvas().style.cursor = "pointer";
+        const f = e.features?.[0];
+        if (!f) return;
+        const p: any = f.properties;
+        const coords = (f.geometry as any).coordinates as [number, number];
+        hoverPopup?.remove();
+        hoverPopup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 10,
+        })
+          .setLngLat(coords)
+          .setHTML(buildCardHTML(p))
+          .addTo(map);
+      });
+
+      map.on("mousemove", "building-icons", (e) => {
+        const f = e.features?.[0];
+        if (!f || !hoverPopup) return;
+        const coords = (f.geometry as any).coordinates as [number, number];
+        hoverPopup.setLngLat(coords);
+      });
+
+      map.on("mouseleave", "building-icons", () => {
+        map.getCanvas().style.cursor = "";
+        hoverPopup?.remove();
+        hoverPopup = null;
+      });
+
+      map.on("click", "building-icons", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        const p: any = f.properties;
+        const coords = (f.geometry as any).coordinates as [number, number];
+        map.flyTo({
+          center: coords,
+          zoom: Math.max(map.getZoom(), 15),
+          essential: true,
+        });
+        new maplibregl.Popup({ offset: 12 })
+          .setLngLat(coords)
+          .setHTML(buildCardHTML(p))
+          .addTo(map);
+      });
+    };
+
+    // Hide polygons after style is ready; run on load and also on style reloads
+    map.on("load", async () => {
+      hideBasePolygons(map);
+      await addBuildings();
+      onReady?.(map);
+    });
+    map.on("styledata", () => {
+      // If the style is reloaded (e.g. style switch), apply again
+      hideBasePolygons(map);
     });
 
-    // Cleanup function to remove the map instance when the component unmounts
     return () => {
       map.remove();
       mapRef.current = null;
     };
-  }, [onReady]); // <--- Key change: Removed 'mode' from dependencies
-
-  // You can use a separate useEffect to handle changes to the 'mode' prop
-  // This prevents the entire map from being re-created
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    console.log("Map mode changed to:", mode);
-    // Add logic here to filter data or change layers based on the mode
-    // For example:
-    // map.setFilter('listings-layer', ['==', 'type', mode]);
-  }, [mode]);
+  }, [onReady]);
 
   return (
     <div

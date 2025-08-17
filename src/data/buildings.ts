@@ -1,52 +1,55 @@
-// src/data/buildings.ts
-export const buildingsGeoJSON = {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        properties: {
-          id: "B-ERAM",
-          name: "Eram Garden Residences",
-          type: "Residential",
-          height: 22,
-          floors: 6,
-          price: 78000000000,
-          image: "/images/eram.jpg",
-          description: "Modern apartments near Eram Garden with lush courtyards."
-        },
-        // Near Eram Garden
-        geometry: { type: "Point", coordinates: [52.5079, 29.6349] }
-      },
-      {
-        type: "Feature",
-        properties: {
-          id: "B-VAKIL",
-          name: "Vakil Bazaar Lofts",
-          type: "Mixed-use",
-          height: 28,
-          floors: 8,
-          price: 92000000000,
-          image: "/images/vakil.jpg",
-          description: "Loft-style units steps from Vakil Bazaar."
-        },
-        // By Vakil Bazaar
-        geometry: { type: "Point", coordinates: [52.5417, 29.6193] }
-      },
-      {
-        type: "Feature",
-        properties: {
-          id: "B-QURAN",
-          name: "Quran Gate Business Center",
-          type: "Office",
-          height: 40,
-          floors: 11,
-          price: 115000000000,
-          image: "/images/quran.jpg",
-          description: "Grade‑A offices with views towards Quran Gate."
-        },
-        // Near Quran Gate
-        geometry: { type: "Point", coordinates: [52.5632, 29.6510] }
-      }
-    ]
-  } as const;
-  
+export type Building = {
+  id: string;
+  name: string;
+  agency: string;
+  price: number;           // IRR
+  type: "sale" | "rent";
+  beds: number;
+  baths: number;
+  area_m2: number;
+  coords: [number, number]; // [lng, lat] — MapLibre order!
+  image?: string;
+  description?: string;
+};
+
+export const buildings: Building[] = [
+  {
+    id: "b1",
+    name: "برج قصرالدشت",
+    agency: "املاک مهستان",
+    price: 78000000000,
+    type: "sale",
+    beds: 3,
+    baths: 2,
+    area_m2: 145,
+    coords: [52.5168, 29.6296],
+    image: "/images/sample-1.jpg",
+    description: "واحد بازسازی‌شده با نور عالی و ویوی باز."
+  },
+  {
+    id: "b2",
+    name: "رزیدنس ستارخان",
+    agency: "املاک پارسیان",
+    price: 42000000000,
+    type: "rent",
+    beds: 2,
+    baths: 1,
+    area_m2: 95,
+    coords: [52.545, 29.6125],
+    image: "/images/sample-2.jpg",
+    description: "نوساز، دسترسی عالی به ستارخان و مترو."
+  },
+  {
+    id: "b3",
+    name: "برج ارغوان",
+    agency: "املاک ارغوان",
+    price: 105000000000,
+    type: "sale",
+    beds: 4,
+    baths: 3,
+    area_m2: 210,
+    coords: [52.5742, 29.5919],
+    image: "/images/sample-3.jpg",
+    description: "لاکچری، پارکینگ مهمان، سالن اجتماعات."
+  }
+];

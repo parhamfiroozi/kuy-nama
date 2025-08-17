@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+html, body, #__next {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: #0b1220; /* dark background to match */
+}
+
+/* OPTIONAL: hide MapLibre default attribution if you add your own elsewhere */
+/* .maplibregl-ctrl-attrib { display: none !important; } */

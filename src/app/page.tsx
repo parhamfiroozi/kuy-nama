@@ -14,8 +14,6 @@ export default function Page() {
       {/* optional: your pill nav */}
       <div className="absolute top-3 left-3 z-50">
         <PillNav
-          logo="/logo.svg"
-          logoAlt="Kuy-Nama"
           items={[
             { label: "خانه", href: "/" },
             { label: "فروش", href: "/?mode=sale" },
