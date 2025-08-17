@@ -1,6 +1,7 @@
 # Kuy-Nama
 
-This is a Next.js project, created using `create-next-app`.
+Kuy-Nama is a personal project created exclusively for the Dirbaz platform, designed to showcase the features I can add to make it stand out from other platforms.
+
 
 ## App Design
 
@@ -18,4 +19,5 @@ yarn dev
 pnpm dev
 # or
 bun dev
+
 
